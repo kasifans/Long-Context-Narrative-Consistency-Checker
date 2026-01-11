@@ -1,0 +1,6 @@
+pathway
+sentence-transformers
+numpy
+pandas
+openai
+tqdm
