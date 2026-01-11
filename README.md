@@ -1,47 +1,64 @@
-# Long-Context Narrative Consistency Checker
+# Long-Context Narrative Consistency Checker 📚
 
-A reproducible system for evaluating whether a proposed backstory is **consistent with the narrative of long-form novels**.  
-The project combines **Pathway** for scalable ingestion, **semantic embeddings** for retrieval, and a **deterministic scoring strategy** to produce explainable, conservative predictions.
+This project checks whether a given **backstory** is actually consistent with the narrative of a **long-form novel**.
 
----
+The goal is simple:  
+don’t guess, don’t hallucinate — **find real evidence in the text and decide based on that**.
 
-## 🔍 Problem Statement
-
-Evaluating narrative consistency in long texts is challenging due to:
-- The size of source documents (entire novels)
-- Fragmented narrative evidence
-- The risk of hallucinated or unverifiable conclusions
-
-This project addresses the problem by **retrieving concrete narrative evidence** from the source text and making **threshold-based, explainable decisions** rather than generative guesses.
+This was built during a hackathon under time pressure, with a focus on correctness and clarity rather than flashy generation.
 
 ---
 
-## 🧠 High-Level Approach
+## Why this exists
 
-1. **Ingest** raw novel text files using Pathway
-2. **Chunk** each novel into fixed-size semantic segments
-3. **Normalize** story identifiers from filenames
-4. **Embed** narrative chunks using Sentence Transformers
-5. **Compare** a proposed backstory against relevant chunks
-6. **Aggregate** top-K semantic evidence
-7. **Predict** consistency with a confidence score and rationale
+Working with long texts (like novels) is messy.
 
-The system is designed to **fail safely** and avoid hallucinations.
+Important details are spread across chapters, and comparing a short backstory against an entire book directly doesn’t work in practice. On top of that, generative approaches tend to sound confident even when they’re wrong.
 
----
+So instead of generating explanations, this system:
+- breaks the novel into manageable pieces
+- retrieves the most relevant parts
+- and makes a decision based only on retrieved evidence
 
-## ✨ Key Features
-
-- 📥 Pathway-based ingestion for long documents  
-- 🧩 Deterministic chunking and story grouping  
-- 🧠 Sentence-level semantic similarity (no generation)  
-- 📊 Conservative confidence scoring  
-- 📝 Human-readable, policy-style rationales  
-- 🐳 Fully Dockerized for reproducibility  
+If there’s no evidence, it says so.
 
 ---
 
-## 📁 Repository Structure
+## What the system does (end to end)
+
+At a high level, the pipeline looks like this:
+
+1. Novel text files are ingested from disk  
+2. Each novel is split into fixed-size chunks  
+3. All chunks are converted into sentence embeddings  
+4. A backstory is compared against chunks from the correct story  
+5. The strongest matches are aggregated  
+6. A consistency decision is produced with a confidence score  
+
+Every step is deterministic and can be inspected.
+
+---
+
+## About Pathway 🧪
+
+Pathway is used for the **ingestion and chunking** part of the pipeline.
+
+Specifically, it handles:
+- reading long text files
+- tracking file metadata
+- creating a clean stream of text chunks
+
+The ingestion logic lives in:
+ingestion/pathway_ingest.py
+
+
+and is executed from `main.py` using:
+
+```python
+pw.run()
+
+
+## 📁 Project Structure
 
 
 ├── Dockerfile
@@ -54,4 +71,60 @@ The system is designed to **fail safely** and avoid hallucinations.
 ├── data/
 │ ├── novels/ # Input novel text files
 │ └── test.csv # Backstory test cases
-└── results.csv # Output (ignored via .gitignore)
+└── results.csv # Output (ignored by git)
+
+How to run the project
+Requirements
+
+Docker
+
+Build the image
+docker build -t narrative-checker .
+
+Run the checker
+docker run --rm -v ${PWD}:/app narrative-checker python code/main.py data/novels
+
+
+This will:
+
+ingest the novels using Pathway
+
+read backstories from test.csv
+
+generate results.csv
+
+Output format 📊
+
+The output file contains:
+
+Column	Description
+story_id	Identifier of the novel
+prediction	1 = consistent, 0 = inconsistent
+confidence	Average similarity score from top-K chunks
+rationale	Short explanation based on retrieved evidence
+Example
+story_id,prediction,confidence,rationale
+the_count_of_monte_cristo,1,0.281,The backstory is consistent with key narrative elements found in the source text.
+in_search_of_the_castaways,1,0.357,The backstory is consistent with key narrative elements found in the source text.
+
+Interpreting the confidence score
+
+0.20 – 0.30 → weak but plausible alignment
+
+0.30 – 0.45 → moderate narrative consistency
+
+> 0.45 → strong alignment (uncommon for long novels)
+
+Thresholds are intentionally conservative to avoid overconfident predictions.
+
+Design choices
+
+No hallucinated evidence
+
+Retrieval before decision
+
+Deterministic execution
+
+Clear failure modes
+
+Reproducible via Docker
