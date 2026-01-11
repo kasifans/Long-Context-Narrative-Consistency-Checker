@@ -3,9 +3,9 @@
 This project checks whether a given **backstory** is actually consistent with the narrative of a **long-form novel**.
 
 The goal is simple:  
-don’t guess, don’t hallucinate — **find real evidence in the text and decide based on that**.
+**don’t guess, don’t hallucinate — find real evidence in the text and decide based on that.**
 
-This was built during a hackathon under time pressure, with a focus on correctness and clarity rather than flashy generation.
+This system was built during a hackathon under time pressure, with a focus on correctness, transparency, and reproducibility rather than flashy generation.
 
 ---
 
@@ -13,14 +13,15 @@ This was built during a hackathon under time pressure, with a focus on correctne
 
 Working with long texts (like novels) is messy.
 
-Important details are spread across chapters, and comparing a short backstory against an entire book directly doesn’t work in practice. On top of that, generative approaches tend to sound confident even when they’re wrong.
+Important details are scattered across chapters, and directly comparing a short backstory against an entire book rarely works in practice. Generative approaches often sound confident even when they are wrong.
 
-So instead of generating explanations, this system:
-- breaks the novel into manageable pieces
-- retrieves the most relevant parts
-- and makes a decision based only on retrieved evidence
+Instead of generating explanations, this system:
 
-If there’s no evidence, it says so.
+- breaks the novel into manageable pieces  
+- retrieves the most relevant parts  
+- makes a decision based **only** on retrieved evidence  
+
+If no supporting evidence is found, the system says so explicitly.
 
 ---
 
@@ -35,21 +36,22 @@ At a high level, the pipeline looks like this:
 5. The strongest matches are aggregated  
 6. A consistency decision is produced with a confidence score  
 
-Every step is deterministic and can be inspected.
+Every step is deterministic and inspectable.
 
 ---
 
 ## About Pathway 🧪
 
-Pathway is used for the **ingestion and chunking** part of the pipeline.
+Pathway is used for the **ingestion and chunking** stage of the pipeline.
 
 Specifically, it handles:
-- reading long text files
+- streaming large text files
 - tracking file metadata
-- creating a clean stream of text chunks
+- producing a clean, structured stream of text chunks
 
 The ingestion logic lives in:
-ingestion/pathway_ingest.py
+
+code/ingestion/pathway_ingest.py
 
 
 and is executed from `main.py` using:
@@ -58,20 +60,25 @@ and is executed from `main.py` using:
 pw.run()
 
 
-## 📁 Project Structure
-
+This allows the system to process very large novels efficiently inside a standard Docker container.
 
 ├── Dockerfile
 ├── README.md
+├── report.md
 ├── requirements.txt
 ├── code/
-│ └── main.py
-├── ingestion/
-│ └── pathway_ingest.py
+│   ├── main.py
+│   ├── ingestion/
+│   │   └── pathway_ingest.py
+│   ├── retrieval/
+│   │   └── retriever.py
+│   └── reasoning/
+│       ├── claim_extractor.py
+│       └── constraint_checker.py
 ├── data/
-│ ├── novels/ # Input novel text files
-│ └── test.csv # Backstory test cases
-└── results.csv # Output (ignored by git)
+│   ├── novels/      # Input novel text files
+│   └── test.csv     # Backstory test cases
+└── results.csv      # Output (ignored by git)
 
 How to run the project
 Requirements
@@ -95,25 +102,30 @@ generate results.csv
 
 Output format 📊
 
-The output file contains:
+The output file (results.csv) contains:
 
 Column	Description
 story_id	Identifier of the novel
 prediction	1 = consistent, 0 = inconsistent
 confidence	Average similarity score from top-K chunks
-rationale	Short explanation based on retrieved evidence
-Example
+rationale	Short explanation grounded in retrieved evidence
+Example output
 story_id,prediction,confidence,rationale
-the_count_of_monte_cristo,1,0.281,The backstory is consistent with key narrative elements found in the source text.
-in_search_of_the_castaways,1,0.357,The backstory is consistent with key narrative elements found in the source text.
+the_count_of_monte_cristo,1,0.281,"Found matching evidence: 'Dantès was falsely accused by Danglars and Fernand...' (Sim: 0.281)"
+in_search_of_the_castaways,1,0.357,"Found matching evidence: 'The message in the bottle was partially legible...' (Sim: 0.357)"
+
+
+The rationale always includes a snippet of the retrieved narrative evidence used to make the decision.
 
 Interpreting the confidence score
+
+These values are raw cosine similarity scores, not probabilities:
 
 0.20 – 0.30 → weak but plausible alignment
 
 0.30 – 0.45 → moderate narrative consistency
 
-> 0.45 → strong alignment (uncommon for long novels)
+> 0.45 → strong alignment (rare for long novels)
 
 Thresholds are intentionally conservative to avoid overconfident predictions.
 
@@ -127,4 +139,4 @@ Deterministic execution
 
 Clear failure modes
 
-Reproducible via Docker
+Fully reproducible via Docker
